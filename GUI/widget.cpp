@@ -22,7 +22,7 @@ Widget::Widget(QWidget *parent)
     setWindowTitle("STM32 ElectroDeep Flasher");
     setFixedSize(width(), height());
     QString appDir = QApplication::applicationDirPath();
-    QString iconPath = appDir + "/Logo-ElectroDev.jpg";
+    QString iconPath = appDir + "./images/Logo-ElectroDev-2.PNG";
     setWindowIcon(QIcon(iconPath));
 
     // Setup combo boxes
@@ -53,7 +53,7 @@ Widget::Widget(QWidget *parent)
     connect(exitAction, &QAction::triggered, qApp, &QApplication::quit);
     connect(aboutAction, &QAction::triggered, this, [this]() {
         QString appDir = QApplication::applicationDirPath();
-        QString iconPath = appDir + "/Logo-ElectroDev.jpg";
+        QString iconPath = appDir + "./images/Logo-ElectroDev.PNG";
         QPixmap logo(iconPath);
 
         QMessageBox msgBox(this);
