@@ -1,6 +1,7 @@
 #include "STM32Bootloader.h"
 #include <QDebug>
 #include <QCoreApplication>
+#include <iostream>
 
 STM32Bootloader::STM32Bootloader(QObject *parent) : QObject(parent)
 {
@@ -26,7 +27,7 @@ bool STM32Bootloader::connectToDevice(const QString &portName, int baudRate,
     setupSerialPort(dataBits, stopBits, parity, flowControl);
 
     if (!serialPort.open(QIODevice::ReadWrite)) {
-        emit operationCompleted(false, "Connection impossible: " + serialPort.errorString());
+        emit operationCompleted(false, "Error: Connection impossible to : " + serialPort.errorString());
         return false;
     }
 
@@ -34,7 +35,7 @@ bool STM32Bootloader::connectToDevice(const QString &portName, int baudRate,
     emit messageReceived("Waiting for bootloader to become ready...");
     QThread::msleep(2000);
 
-    emit operationCompleted(true, "Connected to " + portName);
+    emit operationCompleted(true, "Connected successfully to " + portName);
     emit connectionStatusChanged(true);
     emit messageReceived("=== Target information ===");
     emit messageReceived(getDeviceInfo());
@@ -60,7 +61,7 @@ bool STM32Bootloader::flashFile(const QString &filePath, bool runAfterFlash)
 {
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) {
-        emit operationCompleted(false, "Cannot open file: " + file.errorString());
+        emit operationCompleted(false, "Error: Cannot open file: " + file.errorString());
         return false;
     }
 
@@ -70,10 +71,11 @@ bool STM32Bootloader::flashFile(const QString &filePath, bool runAfterFlash)
     lastFilePath = filePath;
 
     quint32 totalSize = static_cast<quint32>(binData.size());
+    std::cout<<"Memory Programming ..."<<std::endl;
     emit messageReceived(QString("File size: %1 bytes").arg(totalSize));
 
     if (!isConnected()) {
-        emit operationCompleted(false, "Serial port not connected!");
+        emit operationCompleted(false, "Error: Serial port not connected!");
         return false;
     }
 
@@ -85,7 +87,7 @@ bool STM32Bootloader::flashFile(const QString &filePath, bool runAfterFlash)
     qint64 written = serialPort.write(reinterpret_cast<const char*>(&totalSize), sizeof(totalSize));
     serialPort.waitForBytesWritten(1000);
     if (written != sizeof(totalSize)) {
-        emit operationCompleted(false, "Failed to send file size");
+        emit operationCompleted(false, "Error: Failed to send file size");
         reconnectReadyRead();
         return false;
     }
@@ -101,7 +103,7 @@ bool STM32Bootloader::flashFile(const QString &filePath, bool runAfterFlash)
         serialPort.waitForBytesWritten(2000);
 
         if (chunkWritten != chunk.size()) {
-            emit operationCompleted(false, QString("Failed to send chunk at offset %1").arg(i));
+            emit operationCompleted(false, QString("Error: Failed to send chunk at offset %1").arg(i));
             reconnectReadyRead();
             return false;
         }
@@ -114,34 +116,43 @@ bool STM32Bootloader::flashFile(const QString &filePath, bool runAfterFlash)
         QThread::msleep(100);
     }
 
-    emit progressChanged(100);
+    // Progress is already at 100% from the loop
 
     // --- Wait for programming confirmation (PROG_OK) ---
+    std::cout<<"\n";
     emit messageReceived("Verifying...");
     QByteArray response;
     QElapsedTimer timer;
     timer.start();
+    int lastVerifyProgress = -1;
 
     while (timer.elapsed() < 15000) { // 15 second timeout
         if (serialPort.waitForReadyRead(100)) {
             response.append(serialPort.readAll());
             if (response.contains("PROG_OK")) {
-                emit messageReceived("← PROG_OK");
+                emit messageReceived("PROG_OK");
+                emit progressChanged(100); // Verification complete
                 break;
             }
             if (response.contains("PROG_FAIL")) {
-                emit messageReceived("← PROG_FAIL");
-                emit operationCompleted(false, "Bootloader reported programming failure");
+                emit messageReceived("PROG_FAIL");
+                emit operationCompleted(false, "Error: Bootloader reported programming failure");
                 reconnectReadyRead();
                 return false;
             }
+        }
+        int elapsed = timer.elapsed();
+        int progress = (elapsed * 100) / 15000;
+        if (progress != lastVerifyProgress) {
+            emit progressChanged(progress);
+            lastVerifyProgress = progress;
         }
         QCoreApplication::processEvents();
     }
 
     if (!response.contains("PROG_OK")) {
         emit messageReceived("No response from MCU - timeout");
-        emit operationCompleted(false, "Verification failed (timeout)");
+        emit operationCompleted(false, "Error: Verification failed (timeout)");
         reconnectReadyRead();
         return false;
     }
@@ -153,10 +164,10 @@ bool STM32Bootloader::flashFile(const QString &filePath, bool runAfterFlash)
         if (runApplication()) {
             emit messageReceived("Application started successfully at 0x08002000 address");
         } else {
-            emit messageReceived("Failed to start application");
+            emit messageReceived("Error: Failed to start application");
         }
     } else {
-        emit messageReceived("Application not started");
+        emit messageReceived("Error: Application not started");
     }
 
     reconnectReadyRead();
@@ -168,7 +179,7 @@ bool STM32Bootloader::verifyFlash()
 {
     // This bootloader does not have a separate verify command.
     // Verification is already done in flashFile by waiting for PROG_OK.
-    emit messageReceived("Verify not supported by bootloader; assuming success.");
+    emit messageReceived("Warning: Verify not supported by bootloader; assuming success.");
     return true;
 }
 

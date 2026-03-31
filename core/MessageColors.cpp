@@ -3,14 +3,14 @@
 MessageColors::MessageType MessageColors::classifyMessage(const QString &message)
 {
     if (message.contains("success", Qt::CaseInsensitive) ||
-        message.contains("ok", Qt::CaseInsensitive) ||
-        message.startsWith("✓")) {
+        message.contains("successfully", Qt::CaseInsensitive) ||
+        message.contains("ok", Qt::CaseInsensitive)) {
         return Success;
     }
     if (message.contains("fail", Qt::CaseInsensitive) ||
         message.contains("error", Qt::CaseInsensitive) ||
-        message.contains("timeout", Qt::CaseInsensitive) ||
-        message.startsWith("✗")) {
+        message.contains("failed", Qt::CaseInsensitive) ||
+        message.contains("timeout", Qt::CaseInsensitive)) {
         return Error;
     }
     if (message.contains("warning", Qt::CaseInsensitive)) {
@@ -23,7 +23,7 @@ QString MessageColors::colorMessageForGUI(const QString &message, MessageType ty
 {
     switch (type) {
     case Info:
-        return message;
+        return QString("<font color='black'>%1</font>").arg(message);
     case Success:
         return QString("<font color='green'>%1</font>").arg(message);
     case Warning:

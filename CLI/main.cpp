@@ -198,17 +198,32 @@ int main(int argc, char *argv[])
 
     STM32Bootloader bootloader;
 
+    bool verifying = false;
+    bool firstProgress = true;
+
     // Connect signals for CLI output
     QObject::connect(&bootloader, &STM32Bootloader::messageReceived,
-                     [](const QString &msg) {
+                     [&verifying, &firstProgress](const QString &msg) {
+                         // The bootloader emits a "Download in Progress:" message for each chunk.
+                         // We render a clean progress bar ourselves below and suppress the repeated text.
+                         if (msg == "Download in Progress:" || msg == "Verifying...") {
+                             if (msg == "Verifying...") {
+                                 verifying = true;
+                             }
+                             firstProgress = true;
+                             return;
+                         }
+
                          MessageColors::MessageType type = MessageColors::classifyMessage(msg);
                          QString colored = MessageColors::colorMessageForCLI(msg, type);
                          std::cout << colored.toStdString() << std::endl;
                      });
 
     QObject::connect(&bootloader, &STM32Bootloader::operationCompleted,
-                     [&app](bool success, const QString &msg) {
-                         QString fullMsg = (success ? "✓ " : "✗ ") + msg;
+                     [&app, &verifying, &firstProgress](bool success, const QString &msg) {
+                         verifying = false; // Reset for next operation
+                         firstProgress = true; // Reset for next operation
+                         QString fullMsg = msg;
                          MessageColors::MessageType type = MessageColors::classifyMessage(fullMsg);
                          QString colored = MessageColors::colorMessageForCLI(fullMsg, type);
                          std::cout << colored.toStdString() << std::endl;
@@ -217,12 +232,42 @@ int main(int argc, char *argv[])
                          }
                      });
 
+    QObject::connect(&bootloader, &STM32Bootloader::progressChanged,
+                     [&verifying, &firstProgress](int percentage) {
+                         if (firstProgress) {
+                             std::string label = verifying ? "Verification in Progress:" : "Download in Progress:";
+                             std::cout << label << std::endl;
+                             firstProgress = false;
+                         }
+
+                         int barWidth = 50;
+                         int filled = (percentage * barWidth) / 100;
+                         std::string barFilled(filled, ' ');
+                         std::string barEmpty(barWidth - filled, ' ');
+                         const std::string green = "\x1b[42m";
+                         const std::string reset = "\x1b[0m";
+
+                         std::cout << "\r" << green << barFilled << reset << barEmpty << percentage << "%" << std::flush;
+
+                         if (percentage == 100) {
+                             std::cout << std::endl;
+                             firstProgress = true;
+                             verifying = false; // Reset after verification complete
+                         }
+                     });
+
     // List ports
     if (listPorts) {
+        QString msg = "Available COM ports:";
+        MessageColors::MessageType type = MessageColors::classifyMessage(msg);
+        QString colored = MessageColors::colorMessageForCLI(msg, type);
+        std::cout << colored.toStdString() << std::endl;
         auto ports = STM32Bootloader::getAvailablePorts();
-        std::cout << "Available COM ports:" << std::endl;
         for (const auto &port : ports) {
-            std::cout << "  " << port.toStdString() << std::endl;
+            QString portMsg = "  " + port;
+            type = MessageColors::classifyMessage(portMsg);
+            colored = MessageColors::colorMessageForCLI(portMsg, type);
+            std::cout << colored.toStdString() << std::endl;
         }
         return 0;
     }
@@ -232,21 +277,27 @@ int main(int argc, char *argv[])
         if (!bootloader.connectToDevice(connectPort, baudRate)) {
             return 1;
         }
-        std::cout << "Connected successfully to " << connectPort.toStdString() << std::endl;
+        // Connection message is already emitted by bootloader
     }
 
     // Flash file if requested
     if (!flashFile.isEmpty()) {
         if (!bootloader.isConnected()) {
-            std::cerr << "Error: Not connected to device. Use --connect first." << std::endl;
+            QString msg = "Error: Not connected to device. Use --connect first.";
+            MessageColors::MessageType type = MessageColors::classifyMessage(msg);
+            QString colored = MessageColors::colorMessageForCLI(msg, type);
+            std::cerr << colored.toStdString() << std::endl;
             return 1;
         }
         if (!bootloader.flashFile(flashFile, runAfterFlash)) {
             return 1;
         }
-        std::cout << "Flash successful!" << std::endl;
+        // Flash success message is already emitted by bootloader
     } else if (runAfterFlash) {
-        std::cerr << "Warning: --run specified but no --flash file given." << std::endl;
+        QString msg = "Warning: --run specified but no --flash file given.";
+        MessageColors::MessageType type = MessageColors::classifyMessage(msg);
+        QString colored = MessageColors::colorMessageForCLI(msg, type);
+        std::cerr << colored.toStdString() << std::endl;
     }
 
     // Verify flash if requested

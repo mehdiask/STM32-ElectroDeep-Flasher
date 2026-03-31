@@ -31,6 +31,21 @@ Widget::Widget(QWidget *parent)
     // Initialize UI state
     updateConnectionButtons(false);
     ui->progressBar->setValue(0);
+    ui->progressBar->setTextVisible(true);
+    ui->progressBar->setFormat("%p%");
+    ui->progressBar->setStyleSheet(
+        "QProgressBar {"
+        "  border: 1px solid #aaa;"
+        "  border-radius: 8px;"
+        "  background-color: #f0f0f0;"
+        "  color: #000000;"
+        "  text-align: center;"
+        "}"
+        "QProgressBar::chunk {"
+        "  border-radius: 8px;"
+        "  background-color: #4caf50;"
+        "}"
+    );
 
     // Connect bootloader signals
     connect(m_bootloader, &STM32Bootloader::progressChanged,
@@ -110,7 +125,11 @@ void Widget::on_pushButton_Connect_clicked()
     QString parity = ui->comboBox_5Parity->currentText();
     QString flowControl = ui->comboBox_6FlowControl->currentText();
 
-    ui->LogMessages->append("Attempting to connect...");
+    QString msg = "Attempting to connect...";
+    MessageColors::MessageType type = MessageColors::classifyMessage(msg);
+    QString colored = MessageColors::colorMessageForGUI(msg, type);
+    ui->LogMessages->moveCursor(QTextCursor::End);
+    ui->LogMessages->insertHtml(colored + "<br>");
 
     m_bootloader->connectToDevice(portName, baudRate, dataBits, stopBits, parity, flowControl);
 }
@@ -123,7 +142,11 @@ void Widget::on_pushButton_Disconnect_clicked()
 void Widget::on_pushButton_Refresh_clicked()
 {
     setupComboBoxes();
-    ui->LogMessages->append("Port list refreshed.");
+    QString msg = "Port list refreshed.";
+    MessageColors::MessageType type = MessageColors::classifyMessage(msg);
+    QString colored = MessageColors::colorMessageForGUI(msg, type);
+    ui->LogMessages->moveCursor(QTextCursor::End);
+    ui->LogMessages->insertHtml(colored + "<br>");
 }
 
 void Widget::on_pushButton_Clear_clicked()
@@ -155,7 +178,11 @@ void Widget::on_pushButton_Browse_clicked()
     if (!filePath.isEmpty()) {
         m_filePath = filePath;
         ui->lineEditFilePath->setText(filePath);
-        ui->LogMessages->append("Selected file: " + filePath);
+        QString msg = "Selected file: " + filePath;
+        MessageColors::MessageType type = MessageColors::classifyMessage(msg);
+        QString colored = MessageColors::colorMessageForGUI(msg, type);
+        ui->LogMessages->moveCursor(QTextCursor::End);
+        ui->LogMessages->insertHtml(colored + "<br>");
     }
 }
 
@@ -174,7 +201,7 @@ void Widget::onMessageReceived(const QString &message)
 
 void Widget::onOperationCompleted(bool success, const QString &message)
 {
-    QString fullMsg = (success ? "✓ " : "✗ ") + message;
+    QString fullMsg = message;
     MessageColors::MessageType type = MessageColors::classifyMessage(fullMsg);
     QString colored = MessageColors::colorMessageForGUI(fullMsg, type);
     ui->LogMessages->moveCursor(QTextCursor::End);

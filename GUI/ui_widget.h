@@ -82,7 +82,7 @@ public:
         pushButton_Refresh->setGeometry(QRect(260, 90, 71, 23));
         progressBar = new QProgressBar(Widget);
         progressBar->setObjectName(QString::fromUtf8("progressBar"));
-        progressBar->setGeometry(QRect(40, 310, 751, 16));
+        progressBar->setGeometry(QRect(40, 310, 751, 24));
         progressBar->setValue(24);
         pushButton_Disconnect = new QPushButton(Widget);
         pushButton_Disconnect->setObjectName(QString::fromUtf8("pushButton_Disconnect"));
